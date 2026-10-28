@@ -144,7 +144,7 @@ To upgrade to a later release, put its zip in the repository and change the same
 
 Maven Central needs a group of our own, so the modules there are under `io.github.ltslab`.
 Every release also goes there, at the same version; this one is `3.5.16-ltslab.1`.
-It has every module that a patch changes, with the version `<upstream version>-ltslab.1`, and:
+It has every module that a patch changes, with the zip's version, and:
 
 - `io.github.ltslab:spring-boot-dependencies:3.5.16-ltslab.1`, a BOM,
 - `io.github.ltslab:lts-for-spring-maven-extension` and the Gradle plugin `io.github.ltslab.lts-for-spring`, version `3.5.16-ltslab.1`, which redirect references to the Spring Framework, Spring Security, Spring Batch, Reactor Core, and Reactor Netty modules; [`compat/`](compat/) has their source and samples.

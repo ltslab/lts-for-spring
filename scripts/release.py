@@ -80,17 +80,34 @@ def ltslab(v, train=TRAIN):
 BOM_VERSION, CENTRAL_VERSION = ltslab(MANIFEST["boot"]), ltslab(MANIFEST["boot"], CENTRAL_TRAIN)
 
 
-def version(project, train=TRAIN):
+def released():
+    """The releases before this train, newest first: (tag, train)."""
+    tags = subprocess.run(["git", "tag", "--list", f"{MANIFEST['boot']}-ltslab.*"], cwd=ROOT,
+                          capture_output=True, text=True, check=True).stdout.split()
+    return sorted(((t, int(t.rsplit(".", 1)[1])) for t in tags if int(t.rsplit(".", 1)[1]) < TRAIN),
+                  key=lambda r: -r[1])
+
+
+@functools.cache
+def version(project):
+    """The project's version: the train of the release that last changed its patches, or this train. A version once
+    released never changes, so a project whose patches are as released keeps that release's modules."""
+    train = TRAIN
+    for tag, n in released():
+        if subprocess.run(["git", "diff", "--quiet", tag, "--", f"patches/{project}"], cwd=ROOT).returncode:
+            break
+        train = n
     return ltslab(str(V1[project]["tag"]).removeprefix("v"), train)
-
-
-# Every module that Maven Central republishes under GROUP: (upstream group, artifact ID) -> its version there.
-MODULES = {(p["publish"]["group"], m): version(name, CENTRAL_TRAIN)
-           for name, p in V1.items() for m in p["publish"]["modules"]}
 
 
 def module_dir(artifact, ver):
     return REPO / GROUP.replace(".", "/") / artifact / ver
+
+
+@functools.cache
+def central_modules():
+    """Every module that Maven Central has under GROUP: (upstream group, artifact ID) -> its version, the zip's."""
+    return {(p["publish"]["group"], m): version(name) for name, p in V1.items() for m in p["publish"]["modules"]}
 
 
 def run(cmd, cwd, log, env=None):
@@ -140,7 +157,7 @@ def rewrite_pom(path, project):
     """Put a built POM under GROUP for Maven Central: its own group ID, its dependencies on the modules in
     the bundle, and its upstream parent from Maven Central. A dependency on one of the project's other modules,
     which only the zip republishes, goes back to its upstream coordinates."""
-    published = {a: v for (_, a), v in MODULES.items()}
+    published = {a: v for (_, a), v in central_modules().items()}
     upstream = (V1[project]["publish"]["group"], str(V1[project]["tag"]).removeprefix("v"))
     tree = ET.parse(path)
     root = tree.getroot()
@@ -163,8 +180,8 @@ def rewrite_pom(path, project):
             g.text = GROUP
         if ver is not None and ver.text == "${project.version}":
             ver.text = f"{upstream[1]}{suffix}"
-        if (g.text, a.text) in MODULES:
-            target = GROUP, MODULES[(g.text, a.text)]
+        if (g.text, a.text) in central_modules():
+            target = GROUP, central_modules()[(g.text, a.text)]
         elif (ours or (ver is not None and ver.text.endswith(suffix))) and a.text not in published:
             # A module that only the zip republishes: its upstream coordinates, so the upstream parent's
             # dependency management, or the upstream version, applies.
@@ -446,23 +463,37 @@ def build(project):
     verify.apply(project)
     log, ver = d / "release.log", version(project)
     log.write_text("")
-    if not (d / "pom.xml").is_file():  # a Gradle project
-        run(["./gradlew", "-q", "--console=plain", "-I", str(ROOT / "scripts" / "release-init.gradle"),
-             f"-Dltslab.train={TRAIN}", f"-Dltslab.repo={UPSTREAM.as_uri()}",
-             "publishAllPublicationsToLtslabRepository"], d, log)
+    if ver == ltslab(str(V1[project]["tag"]).removeprefix("v")):
+        swap(project, log)
     else:
-        run(["./mvnw", "-q", "-B", "versions:set", f"-DnewVersion={ver}",
-             "-DgenerateBackupPoms=false", "-DprocessAllModules=true"], d, log)
-        run(["./mvnw", "-q", "-B", "-DskipTests", "-Dspring-javaformat.skip=true", "-Dmaven.javadoc.skip=true",
-             "deploy", f"-DaltDeploymentRepository=ltslab::{UPSTREAM.as_uri()}"], d, log)
+        copy_released(project, ver)
     print(f"{project}: {len(list(UPSTREAM.rglob(f'*-{ver}.pom')))} modules published with version {ver}")
     return True
+
+
+def copy_released(project, ver):
+    """Copy what the last release's zip has of the project at ver, which its patches have not changed since: its
+    modules, parents, and BOMs, under its group at its versions."""
+    tag = released()[0][0]
+    archive = toolchain.CACHE / "releases" / f"lts-for-spring-{tag}.zip"
+    if not archive.is_file():
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        archive.write_bytes(toolchain.fetch(f"{URL}/releases/download/{tag}/lts-for-spring-{tag}.zip")[1])
+    train, g = ver.rsplit(".", 1)[1], V1[project]["publish"]["group"].replace(".", "/")
+    versions = {ltslab(v, train) for v in {*project_modules(project).values(), ver.rsplit("-ltslab.", 1)[0]}}
+    with zipfile.ZipFile(archive) as z:
+        names = [n for n in z.namelist() if n.startswith(f"repository/{g}/") and n.split("/")[-2] in versions]
+        for n in names:
+            (UPSTREAM / n.removeprefix("repository/")).parent.mkdir(parents=True, exist_ok=True)
+            (UPSTREAM / n.removeprefix("repository/")).write_bytes(z.read(n))
+    if not names:
+        raise SystemExit(f"error: {project}: {tag} has no module at {ver}")
 
 
 def central_build(project):
     """Copy the modules that Maven Central lacks from dist/repository to dist/repo under GROUP, with
     their POMs rewritten; the jars are the ones the zip ships."""
-    p, missing, ver = V1[project], unpublished(), version(project, CENTRAL_TRAIN)
+    p, missing, ver = V1[project], unpublished(), version(project)
     modules = [m for m in p["publish"]["modules"] if (p["publish"]["group"], m) in missing]
     for m in modules:
         src = UPSTREAM / p["publish"]["group"].replace(".", "/") / m / ver
@@ -481,7 +512,7 @@ def central_build(project):
 def rebuilt():
     """(group, artifact) -> version of every module that build wrote to dist/repository."""
     return {(pom.parent.parent.parent.relative_to(UPSTREAM).as_posix().replace("/", "."), pom.parent.parent.name):
-            pom.parent.name for pom in UPSTREAM.rglob(f"*-ltslab.{TRAIN}.pom")}
+            pom.parent.name for pom in UPSTREAM.rglob("*-ltslab.*.pom")}
 
 
 def upstream_pom(g, a, v):
@@ -602,7 +633,7 @@ def bom():
             raise SystemExit(f"error: spring-boot-dependencies {boot} has no property {name}")
         props[name].text = value
     managed = root.find(q("dependencyManagement", "dependencies"))
-    for i, ((_, artifact), ver) in enumerate(sorted(MODULES.items())):
+    for i, ((_, artifact), ver) in enumerate(sorted(central_modules().items())):
         dep = ET.Element(q("dependency"))
         ET.SubElement(dep, q("groupId")).text = GROUP
         ET.SubElement(dep, q("artifactId")).text = artifact
@@ -612,7 +643,7 @@ def bom():
     out.mkdir(parents=True, exist_ok=True)
     ET.ElementTree(root).write(out / f"spring-boot-dependencies-{CENTRAL_VERSION}.pom",
                                xml_declaration=True, encoding="UTF-8")
-    print(f"{GROUP}:spring-boot-dependencies:{CENTRAL_VERSION}: {len(MODULES)} modules, "
+    print(f"{GROUP}:spring-boot-dependencies:{CENTRAL_VERSION}: {len(central_modules())} modules, "
           f"{len(DEPENDENCIES['properties'])} third-party versions raised")
     return True
 
@@ -633,7 +664,7 @@ def compat():
     sends each republished module to GROUP and each raised third-party artifact to its version."""
     coordinates = WORK / "compat" / "lts-for-spring.properties"
     coordinates.parent.mkdir(parents=True, exist_ok=True)
-    targets = {f"{g}:{a}": f"{GROUP}:{a}:{v}" for (g, a), v in MODULES.items()}
+    targets = {f"{g}:{a}": f"{GROUP}:{a}:{v}" for (g, a), v in central_modules().items()}
     targets.update(raised_artifacts())
     escaped = {ga: ga.replace(":", "\\:") for ga in targets}  # ':' separates keys in a .properties file
     coordinates.write_text("".join(f"{escaped[ga]}={target}\n" for ga, target in sorted(targets.items())))
@@ -663,7 +694,8 @@ def compat():
 </project>
 """)
     print(f"{GROUP}:lts-for-spring-{{maven-extension,gradle-plugin}}:{CENTRAL_VERSION} and the {PLUGIN_ID} marker "
-          f"written; {len(MODULES)} modules redirected, {len(targets) - len(MODULES)} third-party versions raised")
+          f"written; {len(central_modules())} modules redirected, {len(targets) - len(central_modules())} third-party "
+          "versions raised")
     return True
 
 
@@ -732,8 +764,8 @@ STAGING_AUTH = ("<servers><server><id>train</id><configuration><httpHeaders><pro
 def unpublished():
     """The republished modules that Maven Central does not have yet: (upstream group, artifact ID) -> version."""
     with ThreadPoolExecutor(os.cpu_count() or 2) as pool:
-        there = list(pool.map(lambda item: toolchain.exists(GROUP, item[0][1], item[1]), MODULES.items()))
-    return {ga: v for (ga, v), ok in zip(MODULES.items(), there, strict=True) if not ok}
+        there = list(pool.map(lambda item: toolchain.exists(GROUP, item[0][1], item[1]), central_modules().items()))
+    return {ga: v for (ga, v), ok in zip(central_modules().items(), there, strict=True) if not ok}
 
 
 def central_samples(where="local"):
@@ -746,7 +778,7 @@ def central_samples(where="local"):
     out.mkdir(parents=True, exist_ok=True)
     shutil.rmtree(Path.home() / ".m2" / "repository" / GROUP.replace(".", "/"), ignore_errors=True)  # stale copies
     dependencies = "".join(f"<dependency><groupId>{GROUP}</groupId><artifactId>{a}</artifactId><version>{v}</version>"
-                           "</dependency>" for (_, a), v in sorted(MODULES.items()))
+                           "</dependency>" for (_, a), v in sorted(central_modules().items()))
     (out / "pom.xml").write_text(f"""<project xmlns="{POM}"><modelVersion>4.0.0</modelVersion>
 <groupId>sample</groupId><artifactId>central-sample</artifactId><version>1</version>
 <dependencyManagement><dependencies><dependency><groupId>{GROUP}</groupId><artifactId>spring-boot-dependencies</artifactId>
@@ -762,8 +794,8 @@ def central_samples(where="local"):
          f"-DoutputFile={out / 'maven.txt'}"], ROOT, log, env)
     found = re.findall(r"^\s+([^:\s]+):([^:]+):[^:]+:([^:]+):", (out / "maven.txt").read_text(), re.M)
     ours = {(a, v) for g, a, v in found if g == GROUP}
-    wrong = sorted(f"{GROUP}:{a}:{v} missing" for (_, a), v in MODULES.items() if (a, v) not in ours)
-    twins = sorted(f"{g}:{a}:{v}" for g, a, v in found if (g, a) in MODULES)
+    wrong = sorted(f"{GROUP}:{a}:{v} missing" for (_, a), v in central_modules().items() if (a, v) not in ours)
+    twins = sorted(f"{g}:{a}:{v}" for g, a, v in found if (g, a) in central_modules())
     # A module that only the zip republishes keeps its upstream coordinates in our POMs, so a transitive
     # dependency can still bring the upstream copy; README's Maven Central section has the exclusions.
     print(f"central sample ({where}): {len(found)} modules, {len(ours)} from {GROUP}, "
@@ -779,7 +811,7 @@ def raised_artifacts():
     not third-party."""
     boot, ours = toolchain.managed({}), toolchain.managed(DEPENDENCIES["properties"])
     return {f"{g}:{a}": ours[(g, a)][0] for (g, a), (v, _) in sorted(boot.items())
-            if (g, a) in ours and ours[(g, a)][0] != v and (g, a) not in MODULES}
+            if (g, a) in ours and ours[(g, a)][0] != v and (g, a) not in central_modules()}
 
 
 def placeholder_javadoc(artifact):
@@ -928,7 +960,7 @@ def notes(deployment=None):
     lines = [
         f"LTS for Spring {BOM_VERSION}: security fixes for Spring Boot {MANIFEST['boot']} and Spring Cloud "
         f"{MANIFEST['cloud']}.", "",
-        f"`{ZIP.name}` is a Maven repository with Spring's own group and artifact IDs and `-ltslab.{TRAIN}` versions. "
+        f"`{ZIP.name}` is a Maven repository with Spring's own group and artifact IDs and `-ltslab` versions. "
         f"Put it in your local Maven repository or a private one, and change two versions "
         f"([README]({URL}#install)):", "",
         f"- `org.springframework.boot:spring-boot-starter-parent` or `spring-boot-dependencies`: `{BOM_VERSION}`",
@@ -950,14 +982,15 @@ def notes(deployment=None):
         "`manifest.yaml`. Code that calls those classes directly may need a change.", "",
         f"SHA-256 of `{ZIP.name}`: `{hashlib.sha256(ZIP.read_bytes()).hexdigest()}`; `{ZIP.name}.asc` is its "
         "signature by the ltslab key."]
-    if TRAIN == CENTRAL_TRAIN:
+    if TRAIN == CENTRAL_TRAIN and (deployment or toolchain.exists(GROUP, "spring-boot-dependencies", CENTRAL_VERSION)):
         missing = unpublished()
         added = set(missing) if deployment else set()
-        central = sorted([(GROUP, a, v, (g, a) in added) for (g, a), v in MODULES.items()
+        central = sorted([(GROUP, a, v, (g, a) in added) for (g, a), v in central_modules().items()
                           if deployment or (g, a) not in missing] +
                          [(GROUP, a, CENTRAL_VERSION, False) for a in ("spring-boot-dependencies", *COMPAT)])
         lines += ["", f"Maven Central has the patched modules under `{GROUP}`, with the BOM, the Maven extension, "
-                  f"and the Gradle plugin ([README]({URL}#maven-central)); it gets no later release.", "",
+                  f"and the Gradle plugin ([README]({URL}#maven-central)). A module gets a new version there only when "
+                  "its patches change, and the BOM pins each module's latest one.", "",
                   "| Artifact | Version |", "|---|---|",
                   *[f"| [{a}](https://central.sonatype.com/artifact/{g}/{a}/{v}) | `{v}`"
                     f"{' (added by this release)' if new else ''} |" for g, a, v, new in central]]
@@ -996,6 +1029,8 @@ def unreleased(central=False):
 def main(args):
     if args[:1] == ["build"]:
         unreleased()
+        if not args[1:]:  # a module that an earlier build left would go into the zip
+            shutil.rmtree(UPSTREAM, ignore_errors=True)
         return all(build(p) for p in (args[1:] or V1))
     if args[:1] == ["central-build"]:
         unreleased(central=True)

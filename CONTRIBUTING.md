@@ -80,11 +80,15 @@ scripts/release.py sign      # sign the zip with the ltslab key
 `build` and `central-build` stop when the train is released, on GitHub or on Maven Central, because a
 released version never changes; raise `train` (and `central`) first.
 
-`build` builds each project with its own build: a Gradle project with `./gradlew` and
-`scripts/release-init.gradle`, and a Maven project with `./mvnw`.
+No project is built: `build` swaps the patched classes, compiled by javac, into its upstream release jars,
+after its unpatched sources reproduce the upstream classes byte for byte. For a project whose build weaves its
+classes, `ajc` in `manifest.yaml` runs ajc after javac, as upstream's build does.
 
 Modules keep their upstream group and artifact IDs; only the version changes, to
-`<upstream version>-ltslab.<train>`. The zip holds the modules whose upstream version is on Maven
+`<upstream version>-ltslab.<N>`, where N is the train of the release that last changed the project's
+`patches/` directory. A project whose patches are as released is not built again: `build` copies its
+modules, parents, and BOMs from the last release's zip, so a released version never changes. The BOMs
+take the train's version. The zip holds the modules whose upstream version is on Maven
 Central, without javadoc. A BOM is rewritten when it manages a rebuilt module or imports a
 rewritten BOM, and the Spring Boot BOM also takes the third-party versions from
 `cves/dependencies.json`.
@@ -94,8 +98,9 @@ rewritten BOM, and the Spring Boot BOM also takes the third-party versions from
 Maven Central gets the train `central` in `manifest.yaml`, under the `io.github.ltslab` group, because a
 released version can never change there. Every release publishes its BOM, Maven extension, and Gradle
 plugin again at the release version, so `train` and `central` are raised together when a release goes
-to both. The release workflow, run with `central`, adds the modules in `publish.modules` that Maven
-Central lacks, on that train:
+to both. Central has each module in `publish.modules` at the zip's version, so a release adds only the
+modules of the projects whose patches changed, which keeps two releases a month within Central's monthly
+publishing limits. The release workflow, run with `central`, adds the modules that Central lacks:
 
 ```bash
 scripts/release.py central-build            # copy those modules from the zip build into dist/repo as io.github.ltslab

@@ -14,8 +14,8 @@
 group: io.github.ltslab
 boot: "3.5.16"
 cloud: "2025.0.3"  # the Spring Cloud release train for these Spring Cloud projects
-train: 1  # versions are <upstream version>-ltslab.<train>
-central: 1  # the train that Maven Central gets; raise it with train when a release goes to both
+train: 2  # versions are <upstream version>-ltslab.<train>
+central: 2  # the train that Maven Central gets; raise it with train when a release goes to both
 
 projects:
   spring-framework:
