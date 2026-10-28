@@ -1,0 +1,340 @@
+# Upstream projects and the exact commits the patch series apply to.
+# scope: v1 is built and released; deferred keeps its patches but is not built.
+# Every train ships as a GitHub release zip: every module of each project on its upstream coordinates.
+# publish: the upstream group and the modules that the patches change; on Maven Central only those are
+# republished under `group`, and every other module stays on its upstream coordinates.
+# compile: for a Gradle project, the optional and compile-only dependencies, at the versions its build uses,
+# that the patched sources need but its POMs leave out; a Maven project's POMs in its sources list them.
+# ajc: for a project whose build weaves its classes with aspectj-maven-plugin, the AspectJ version, the aspect
+# libraries, and the aop.xml, so that ajc runs after javac as upstream's build does.
+# test: for a Gradle project, the libraries that its CVE tests need, at the versions its build uses; a Maven project's
+# POMs list them. scripts/verify.py compiles the tests and their fixtures from source and runs them with Maven.
+# test-jdk, test-env, and test-args: for a Gradle project, the JDK, the environment, and the JVM arguments that its
+# build gives the tests; a Maven project's module runs its tests with its own POM.
+group: io.github.ltslab
+boot: "3.5.16"
+cloud: "2025.0.3"  # the Spring Cloud release train for these Spring Cloud projects
+train: 1  # versions are <upstream version>-ltslab.<train>
+central: 1  # the train that Maven Central gets; raise it with train when a release goes to both
+
+projects:
+  spring-framework:
+    upstream: https://github.com/spring-projects/spring-framework
+    tag: v6.2.19
+    commit: 6214eae8bd02c2ed7ab382bb8d16a9cc6de49522
+    scope: v1
+    compile:
+      - com.fasterxml:aalto-xml:1.3.4
+      - io.netty:netty-buffer:4.1.134.Final
+      - io.rsocket:rsocket-core:1.1.5
+      - jakarta.servlet:jakarta.servlet-api:6.0.0
+      - jakarta.xml.bind:jakarta.xml.bind-api:3.0.1
+      - org.eclipse.jetty:jetty-server:12.0.33
+      - org.freemarker:freemarker:2.3.34
+    test-jdk: 17
+    test:
+      - com.fasterxml.woodstox:woodstox-core:6.7.0  # before aalto-xml, as upstream orders them
+      - org.junit.jupiter:junit-jupiter:5.14.4
+      - org.junit.platform:junit-platform-launcher:1.14.4
+      - org.assertj:assertj-core:3.27.7
+      - org.mockito:mockito-core:5.23.0
+      - org.springframework:spring-context:6.2.19
+      - io.projectreactor:reactor-test:3.7.19
+      - io.projectreactor.netty:reactor-netty-http:1.2.18
+      - org.eclipse.jetty.ee10:jetty-ee10-servlet:12.0.33
+      - org.eclipse.jetty.ee10.websocket:jetty-ee10-websocket-jetty-server:12.0.33
+      - org.eclipse.jetty.websocket:jetty-websocket-jetty-server:12.0.33
+      - org.apache.tomcat.embed:tomcat-embed-core:10.1.28
+      - org.apache.tomcat.embed:tomcat-embed-websocket:10.1.28
+      - io.undertow:undertow-core:2.3.20.Final
+      - org.bouncycastle:bcpkix-jdk18on:1.80
+      - org.apache.logging.log4j:log4j-core:2.24.3
+      - com.sun.xml.bind:jaxb-impl:3.0.2
+      - org.dom4j:dom4j:2.2.0
+      - jaxen:jaxen:1.2.0
+      - org.jetbrains.kotlin:kotlin-scripting-jsr223:1.9.25
+      - org.jetbrains.kotlin:kotlin-script-runtime:1.9.25
+      - org.jetbrains.kotlin:kotlin-stdlib:1.9.25
+    test-args:
+      all:
+        - "-Djava.awt.headless=true"
+        - "-Dio.netty.leakDetection.level=paranoid"
+        - "-Dio.netty5.leakDetectionLevel=paranoid"
+        - "-Dio.netty5.leakDetection.targetRecords=32"
+        - "-Dio.netty5.buffer.lifecycleTracingEnabled=true"
+        - "--add-opens=java.base/java.lang=ALL-UNNAMED"
+        - "--add-opens=java.base/java.util=ALL-UNNAMED"
+        - "-Xshare:off"
+    publish:
+      group: org.springframework
+      modules:
+        - spring-context-support
+        - spring-core
+        - spring-expression
+        - spring-messaging
+        - spring-web
+        - spring-webflux
+        - spring-webmvc
+  spring-security:
+    upstream: https://github.com/spring-projects/spring-security
+    tag: 6.5.11
+    commit: 73b077790fcb04ac3712033d3e939daf42264545
+    scope: v1
+    compile:
+      - com.unboundid:unboundid-ldapsdk:6.0.11
+      - com.webauthn4j:webauthn4j-core:0.29.7.RELEASE
+      - jakarta.servlet:jakarta.servlet-api:6.0.0
+    test-jdk: 17
+    test:
+      - org.junit.jupiter:junit-jupiter:5.12.2
+      - org.assertj:assertj-core:3.27.7
+      - org.mockito:mockito-core:5.17.0
+      - org.springframework:spring-test:6.2.19
+    publish:
+      group: org.springframework.security
+      prefix: spring-security-  # artifact ID = prefix + module directory name
+      modules:
+        - spring-security-config
+        - spring-security-core
+        - spring-security-crypto
+        - spring-security-ldap
+        - spring-security-oauth2-core
+        - spring-security-oauth2-jose
+        - spring-security-oauth2-resource-server
+        - spring-security-web
+  reactor-core:
+    upstream: https://github.com/reactor/reactor-core
+    tag: v3.7.19
+    commit: c84e170e12d78dc4c895d4b25bba2eb3a712e10d
+    scope: v1
+    test-jdk: 8
+    test:
+      - org.junit.jupiter:junit-jupiter:5.14.4
+      - org.junit.platform:junit-platform-launcher:1.14.4
+      - org.assertj:assertj-core:3.27.7
+      - io.projectreactor:reactor-test:3.7.19
+      - org.awaitility:awaitility:4.3.0
+      - org.mockito:mockito-core:4.11.0
+    test-args:
+      all:
+        - "-XX:MaxGCPauseMillis=20"
+        - "-Djava.awt.headless=true"
+    publish:
+      group: io.projectreactor
+      modules:
+        - reactor-core
+  reactor-netty:
+    upstream: https://github.com/reactor/reactor-netty
+    tag: v1.2.18
+    commit: c753da48febe3ea28b19bb1cf64ba3b377f1a820
+    scope: v1
+    compile:
+      - io.netty:netty-codec-haproxy:4.1.135.Final
+    test-jdk: 8
+    test:
+      - org.junit.jupiter:junit-jupiter:5.14.4
+      - org.junit.platform:junit-platform-launcher:1.14.4
+      - org.assertj:assertj-core:3.27.7
+      - io.projectreactor:reactor-test:3.7.19
+      - org.awaitility:awaitility:4.3.0
+      - org.mockito:mockito-core:4.11.0
+      - io.projectreactor.tools:blockhound:1.0.16.RELEASE
+      - io.zipkin.brave:brave-instrumentation-http-tests:6.0.3
+      - ch.qos.logback:logback-classic:1.2.13
+      - org.bouncycastle:bcpkix-jdk15on:1.70
+      - org.jetbrains:annotations:13.0  # upstream gets it through another test library
+    test-args:
+      all:
+        - "-Djava.awt.headless=true"
+        - "-Dreactor.trace.cancel=true"
+        - "-Dreactor.trace.nocapacity=true"
+        - "-Dio.netty.leakDetection.level=paranoid"
+        - "-Dreactor.netty.pool.getPermitsSamplingRate=0.5"
+        - "-Dreactor.netty.pool.returnPermitsSamplingRate=0.5"
+    publish:
+      group: io.projectreactor.netty
+      modules:
+        - reactor-netty-core
+        - reactor-netty-http
+        - reactor-netty-http-brave
+  spring-batch:
+    upstream: https://github.com/spring-projects/spring-batch
+    tag: v5.2.6
+    commit: 39c91c1c47eb752a5e64eb612c5e411c5e7f86d8
+    scope: v1
+    publish:
+      group: org.springframework.batch
+      modules:
+        - spring-batch-core
+        - spring-batch-infrastructure
+  spring-amqp:
+    upstream: https://github.com/spring-projects/spring-amqp
+    tag: v3.2.12
+    commit: b68f120d4c154f965c2bbdcd8c519ff82264b80c
+    scope: v1
+    compile:
+      - org.apache.logging.log4j:log4j-core:2.24.3
+    test-jdk: 17
+    test:
+      - org.junit.jupiter:junit-jupiter:5.11.4
+      - org.assertj:assertj-core:3.26.3
+      - org.mockito:mockito-core:5.18.0
+      - org.awaitility:awaitility:4.2.2
+      - org.hamcrest:hamcrest:3.0
+      - org.springframework:spring-test:6.2.19
+      - org.springframework:spring-context:6.2.19
+      - org.springframework.amqp:spring-rabbit-junit:3.2.12
+    test-env:
+      SPRING_AMQP_DESERIALIZATION_TRUST_ALL: "true"
+    test-args:
+      all:
+        - "--add-opens=java.base/java.util.zip=ALL-UNNAMED"
+        - "-Xmx2g"
+        - "-XX:+HeapDumpOnOutOfMemoryError"
+        - "--enable-native-access=ALL-UNNAMED"
+    publish:
+      group: org.springframework.amqp
+      modules:
+        - spring-amqp
+        - spring-rabbit
+        - spring-rabbit-junit
+  spring-authorization-server:
+    upstream: https://github.com/spring-attic/spring-authorization-server
+    tag: 1.5.8
+    commit: 6c84897d6ad95f74944135999630a384f1f69d33
+    scope: v1
+    compile:
+      - jakarta.servlet:jakarta.servlet-api:6.0.0
+    test-jdk: 17
+    test:
+      - org.junit.jupiter:junit-jupiter:5.11.4
+      - org.assertj:assertj-core:3.26.3
+      - org.mockito:mockito-core:4.11.0
+      - org.springframework:spring-test:6.2.19
+    publish:
+      group: org.springframework.security
+      prefix: spring-security-
+      modules:
+        - spring-security-oauth2-authorization-server
+  spring-cloud-config:
+    upstream: https://github.com/spring-cloud/spring-cloud-config
+    tag: v4.3.4
+    commit: 7ec4454f08bf847928b11436eb87c5fbde0e8097
+    scope: v1
+    publish:
+      group: org.springframework.cloud
+      modules:
+        - spring-cloud-config-monitor
+        - spring-cloud-config-server
+  spring-cloud-gateway:
+    upstream: https://github.com/spring-cloud/spring-cloud-gateway
+    tag: v4.3.5
+    commit: b9df96ed3ce4c70298025f48074bed9c6e9f22b4
+    scope: v1
+    publish:
+      group: org.springframework.cloud
+      modules:
+        - spring-cloud-gateway-server
+  spring-data-jpa:
+    upstream: https://github.com/spring-projects/spring-data-jpa
+    tag: 3.5.13
+    commit: c6060cc6c4caaafcd639206dbc77a4bff6b083ef
+    scope: v1
+    ajc:
+      version: 1.9.25.1
+      aspects: [spring-aspects]
+      xml: spring-data-jpa/aop.xml
+    publish:
+      group: org.springframework.data
+      modules:
+        - spring-data-jpa
+  spring-data-rest:
+    upstream: https://github.com/spring-projects/spring-data-rest
+    tag: 4.5.13
+    commit: f1353a887e6ff2856a1aa06b53bc70e4bbab6fe1
+    scope: v1
+    publish:
+      group: org.springframework.data
+      modules:
+        - spring-data-rest-webmvc
+  spring-integration:
+    upstream: https://github.com/spring-projects/spring-integration
+    tag: v6.5.10
+    commit: 5624e08f74a436c5709db81888f552a19ed779d1
+    scope: v1
+    compile:
+      - jakarta.jms:jakarta.jms-api:3.1.0
+    test-jdk: 17
+    test:
+      - org.junit.jupiter:junit-jupiter:5.12.2
+      - org.assertj:assertj-core:3.27.7
+      - org.mockito:mockito-core:5.18.0
+      - org.springframework.integration:spring-integration-test-support:6.5.10
+      - org.apache.activemq:artemis-jakarta-client:2.41.0
+      - org.apache.activemq:artemis-server:2.41.0
+      - com.fasterxml.jackson.core:jackson-databind:2.19.4
+      - org.awaitility:awaitility:4.3.0
+      - org.hamcrest:hamcrest:3.0
+      - org.springframework:spring-test:6.2.19
+      - junit:junit:4.13.2
+      - org.junit.vintage:junit-vintage-engine:5.12.2
+    test-args:
+      all:
+        - "--add-opens=java.base/java.util=ALL-UNNAMED"
+        - "-Xshare:off"
+        - "--enable-native-access=ALL-UNNAMED"
+      spring-integration-ip:
+        - "--add-opens=java.base/java.nio.channels.spi=ALL-UNNAMED"
+        - "-Djava.net.preferIPv4Stack=true"
+    publish:
+      group: org.springframework.integration
+      modules:
+        - spring-integration-core
+        - spring-integration-file
+        - spring-integration-http
+        - spring-integration-ip
+        - spring-integration-jms
+        - spring-integration-syslog
+        - spring-integration-zip
+  spring-kafka:
+    upstream: https://github.com/spring-projects/spring-kafka
+    tag: v3.3.16
+    commit: 87c4b047b658fa472201299e1cc4be7842c63c73
+    scope: v1
+    compile:
+      - com.fasterxml.jackson.core:jackson-databind:2.18.8
+    test-jdk: 17
+    test:
+      - org.junit.jupiter:junit-jupiter:5.11.4
+      - org.assertj:assertj-core:3.25.3
+      - org.mockito:mockito-core:5.18.0
+      - org.awaitility:awaitility:4.2.2
+      - org.hamcrest:hamcrest:3.0
+      - org.springframework:spring-test:6.2.19
+    test-args:
+      all:
+        - "-Xmx1536m"
+    publish:
+      group: org.springframework.kafka
+      modules:
+        - spring-kafka
+
+# Spring Boot BOM properties that ltslab overrides to pick up fixed third-party releases.
+# Spring Boot's BOM with newer third-party versions; CONTRIBUTING.md "Dependency upgrades" has the rules.
+# scripts/dependencies.py applies them and writes the chosen versions to cves/dependencies.json.
+bom:
+  lines:  # newer lines, taken only to fix a CVE and only without public API breaks
+    commons-lang3.version: "3.18"
+    log4j2.version: "2.25"
+  rejected:  # CVEs fixed only on a newer line that breaks public API, or not on Maven Central
+    httpclient5.version: "5.6 removes public classes and constructors in org.apache.hc.client5.http.impl"
+    httpcore5.version: "5.4 removes public constructors in org.apache.hc.core5.http.impl.bootstrap"
+    rabbit-amqp-client.version: "5.31 and later make TrustEverythingTrustManager non-public"
+    opentelemetry.version: "1.62 changes the superclass of a public class in opentelemetry-sdk-extension-jaeger-remote-sampler"
+    activemq.version: "6.2 removes public methods and classes; the fixed 6.1.9 is not on Maven Central"
+    artemis.version: "2.53 moves every artifact to the org.apache.artemis group"
+    hazelcast.version: "5.7 removes public constructors, fields, and methods"
+    r2dbc-mariadb.version: "1.4 removes public constructors and an interface"
+    derby.version: "the fixed 10.16.1.2 is not on Maven Central, and newer lines need a newer Java"
+  reviewed:  # changes to APIs that Spring uses, checked by hand
+    "CONSTRUCTOR_LESS_ACCESSIBLE org.apache.catalina.webresources.AbstractResourceSet#AbstractResourceSet": "now protected; Spring Boot calls it only from subclasses"

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Registers the participant under its Maven role, so Maven finds it when loaded as a core extension. -->
+<component-set>
+  <components>
+    <component>
+      <role>org.apache.maven.AbstractMavenLifecycleParticipant</role>
+      <role-hint>lts-for-spring</role-hint>
+      <implementation>io.github.ltslab.ltsforspring.LtsForSpringParticipant</implementation>
+    </component>
+  </components>
+</component-set>

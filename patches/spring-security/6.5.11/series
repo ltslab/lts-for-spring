@@ -1,0 +1,12 @@
+01-CVE-2026-41707-test.patch
+02-CVE-2026-41707-fix.patch
+01-CVE-2026-47841-test.patch
+02-CVE-2026-47841-fix.patch
+01-CVE-2026-47842-test.patch
+02-CVE-2026-47842-fix.patch
+01-CVE-2026-59270-test.patch
+02-CVE-2026-59270-fix.patch
+01-CVE-2026-59276-test.patch
+02-CVE-2026-59276-fix.patch
+03-CVE-2026-59276-fix-2.patch
+04-CVE-2026-59276-fix-3.patch

@@ -1,0 +1,43 @@
+// Init script for scripts/release.py: publish with an -ltslab.N version suffix to a local repository
+// named "ltslab", without editing the upstream build. With ltslab.group, also under that group;
+// without it, on the upstream group.
+def ltslabGroup = System.getProperty('ltslab.group') ?: null
+def train = System.getProperty('ltslab.train')
+def repo = System.getProperty('ltslab.repo')
+allprojects {
+    // ltslab signs the release bundle itself; upstream signing setups need upstream keys.
+    tasks.withType(Sign).configureEach { enabled = false }
+    // Javadoc is published as a placeholder (scripts/release.py bundle), so it is not generated.
+    tasks.matching { it instanceof Javadoc || it.name.startsWith('dokka') }.configureEach { enabled = false }
+    afterEvaluate { p ->
+        if (ltslabGroup) {
+            p.group = ltslabGroup
+        }
+        def suffix = "-ltslab.${train}"
+        if (!p.version.toString().endsWith(suffix)) {  // some builds copy the root version to subprojects
+            p.version = "${p.version}${suffix}"
+        }
+        p.plugins.withId('maven-publish') {
+            p.publishing.publications.withType(MavenPublication).configureEach {
+                if (ltslabGroup) {
+                    groupId = ltslabGroup
+                }
+                version = p.version
+            }
+            // Root projects publish only distribution and documentation zips, never a module.
+            if (p != p.rootProject) {
+                p.publishing.repositories.maven { name = 'ltslab'; url = repo }
+            }
+        }
+    }
+}
+// Documentation zips are not republished; upstream adds them late in evaluation.
+gradle.projectsEvaluated {
+    allprojects { p ->
+        p.plugins.withId('maven-publish') {
+            p.publishing.publications.withType(MavenPublication).configureEach { pub ->
+                pub.artifacts.removeAll { it.classifier == 'docs' }
+            }
+        }
+    }
+}

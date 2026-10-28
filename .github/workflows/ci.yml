@@ -1,0 +1,70 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * 1"  # weekly full run
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # Pull requests verify only what they change; main, the weekly run, and changes to the
+      # tooling verify everything.
+      - id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -z "$BASE" ]; then echo "apply=true" >> "$GITHUB_OUTPUT"; echo "cves=all" >> "$GITHUB_OUTPUT"; exit 0; fi
+          changed=$(git diff --name-only "$BASE" HEAD)
+          if grep -q -E '^(scripts/|\.github/|manifest\.yaml$)' <<< "$changed"; then
+            echo "apply=true" >> "$GITHUB_OUTPUT"; echo "cves=all" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if grep -q '^patches/' <<< "$changed"; then echo "apply=true" >> "$GITHUB_OUTPUT"; fi
+          ids=""
+          for id in $(grep -o -E 'CVE-[0-9]+-[0-9]+' <<< "$changed" | sort -u); do
+            if grep -q '^  tests:' "cves/$id.yaml" 2>/dev/null; then ids="$ids $id"; fi
+          done
+          echo "cves=${ids# }" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/setup
+      # Upstream sources are pinned, so their dependencies repeat across runs.
+      - uses: actions/cache@v6
+        if: steps.scope.outputs.cves != ''
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
+          key: build-${{ hashFiles('manifest.yaml', 'cves/*.yaml') }}
+          restore-keys: build-
+      - name: Lint the scripts
+        run: |
+          python -m pip install ruff==0.14.2
+          ruff check --line-length 120 --select E,W,F,B,UP,I scripts
+      - name: Check manifest, CVEs, and patches
+        run: python scripts/verify.py
+      - name: Apply every series to its pinned commit
+        if: steps.scope.outputs.apply == 'true'
+        run: python scripts/verify.py apply
+      - name: Prove Red and Green
+        if: steps.scope.outputs.cves != ''
+        env:
+          CVES: ${{ steps.scope.outputs.cves }}
+        run: python scripts/verify.py cve $([ "$CVES" = all ] || echo "$CVES")
+      - name: Check third-party versions and CVEs
+        if: github.event_name == 'schedule' && !cancelled()
+        run: python scripts/dependencies.py check

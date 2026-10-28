@@ -1,0 +1,26 @@
+name: setup
+description: Python 3.14 with PyYAML, and JDKs 8, 17, and 21 (the default), for the scripts in scripts/.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.14"
+    # The patched classes compile with the JDK that reproduces upstream's classes. Spring Cloud Config's need
+    # javac 17.0.13, before 17.0.14 changed how string concatenation converts its operands, beside the newest 17.
+    - id: jdk17
+      uses: actions/setup-java@v6
+      with:
+        distribution: temurin
+        java-version: "17.0.13"
+    - run: echo "LTSLAB_JDKS=${{ steps.jdk17.outputs.path }}" >> "$GITHUB_ENV"
+      shell: bash
+    - uses: actions/setup-java@v6
+      with:
+        distribution: temurin
+        java-version: |
+          8
+          17
+          21
+    - run: python -m pip install pyyaml==6.0.3
+      shell: bash

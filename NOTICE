@@ -1,0 +1,34 @@
+LTS for Spring
+Copyright 2026 the ltslab contributors
+
+This product contains patches to the following projects, which are licensed
+under the Apache License, Version 2.0. Their notices are reproduced below.
+
+-------------------------------------------------------------------------------
+Spring Framework
+Copyright (c) 2002-2026 Pivotal, Inc.
+
+-------------------------------------------------------------------------------
+Spring Security
+This product includes software developed by Spring Security Project
+(https://www.springframework.org/security).
+
+-------------------------------------------------------------------------------
+Spring AMQP
+Copyright (c) 2010-2026 Pivotal, Inc.
+
+-------------------------------------------------------------------------------
+Spring Integration
+Copyright (c) 2009-2026 Broadcom, Inc.
+
+-------------------------------------------------------------------------------
+Spring for Apache Kafka
+Copyright (c) 2016-2026 Pivotal, Inc.
+
+-------------------------------------------------------------------------------
+Spring Data JPA
+Copyright (c) 2011-2019 Pivotal Software, Inc.
+
+-------------------------------------------------------------------------------
+Spring Data REST
+Copyright (c) 2012-2019 Pivotal Software, Inc.

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Makes the lifecycle participant visible to Maven when loaded as a core extension. -->
+<extension>
+  <exportedPackages>
+    <exportedPackage>io.github.ltslab.ltsforspring</exportedPackage>
+  </exportedPackages>
+</extension>

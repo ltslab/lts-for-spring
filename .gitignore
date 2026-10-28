@@ -1,0 +1,28 @@
+# Local upstream checkouts and release output
+/work/
+/dist/
+
+# Build outputs and caches
+.flattened-pom.xml
+build/
+target/
+.gradle/
+out/
+*.class
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local secrets and settings; never commit
+settings.xml
+*.gpg
+*.key
+.env
+
+# Editors and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
