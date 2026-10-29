@@ -7,6 +7,7 @@ coordinates and an -ltslab.N version, and Spring Boot and Spring Cloud BOMs that
   scripts/release.py build [PROJECT]   apply each v1 series and publish every module to dist/repository
   scripts/release.py boms              write the Spring Boot, Spring Cloud, and other BOMs to dist/repository
   scripts/release.py samples           build samples/maven against dist/repository
+  scripts/release.py classes           check that every built jar differs from upstream only in patched classes
   scripts/release.py zip               zip dist/repository as the release asset
   scripts/release.py sign [KEY]        sign the zip (and dist/bundle, if any) with gpg
   scripts/release.py notes [DEPLOYMENT]  print the GitHub release notes for the train
@@ -88,11 +89,21 @@ def released():
                   key=lambda r: -r[1])
 
 
+def rebuilds(project):
+    """Whether the project rebuilds at this train although its patches are as released, because its released
+    classes do not match the upstream build."""
+    rebuild = MANIFEST.get("rebuild") or {}
+    return rebuild.get("train") == TRAIN and project in (rebuild.get("projects") or [])
+
+
 @functools.cache
 def version(project):
     """The project's version: the train of the release that last changed its patches, or this train. A version once
-    released never changes, so a project whose patches are as released keeps that release's modules."""
+    released never changes, so a project whose patches are as released keeps that release's modules, apart from a
+    project listed under rebuild in manifest.yaml, which this train rebuilds anyway."""
     train = TRAIN
+    if rebuilds(project):
+        return ltslab(str(V1[project]["tag"]).removeprefix("v"))
     for tag, n in released():
         if subprocess.run(["git", "diff", "--quiet", tag, "--", f"patches/{project}"], cwd=ROOT).returncode:
             break
@@ -513,6 +524,57 @@ def rebuilt():
     """(group, artifact) -> version of every module that build wrote to dist/repository."""
     return {(pom.parent.parent.parent.relative_to(UPSTREAM).as_posix().replace("/", "."), pom.parent.parent.name):
             pom.parent.name for pom in UPSTREAM.rglob("*-ltslab.*.pom")}
+
+
+def upstream_jar(g, a, v):
+    """The upstream release jar at g:a:v, cached: a swapped jar starts from it."""
+    path = toolchain.CACHE / "upstream" / g.replace(".", "/") / a / f"{a}-{v}.jar"
+    if not path.is_file():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(toolchain.fetch(toolchain.url(g, a, v, "jar"))[1])
+    return path
+
+
+def class_diffs(project):
+    """The modules of the project whose built jar differs from the upstream release jar outside the classes that its
+    patches change: [(module, [class])]. The swap keeps every other class as upstream built it, so a difference
+    there means the project was copied from a release whose classes do not match upstream, or the swap is wrong."""
+    p, g = V1[project], V1[project]["publish"]["group"]
+    up, ver = str(p["tag"]).removeprefix("v"), version(project)
+    patched = verify.patched(project)
+    out = []
+    for module in p["publish"]["modules"]:
+        built = UPSTREAM / g.replace(".", "/") / module / ver / f"{module}-{ver}.jar"
+        if not built.is_file():
+            raise SystemExit(f"error: {module}:{ver} is missing; run scripts/release.py build")
+        with zipfile.ZipFile(built) as z:
+            got = {n: z.read(n) for n in z.namelist() if n.endswith(".class")}
+        with zipfile.ZipFile(upstream_jar(g, module, up)) as z:
+            reference = {n: z.read(n) for n in z.namelist() if n.endswith(".class")}
+        bases = {path.removeprefix("java/").removesuffix(".java") for path in patched.get(module, {})}
+        compiled = WORK / "swap" / project / "classes" / module
+        if ver != ltslab(up) and compiled.is_dir():  # rebuilt in this run, so its compiled classes are current
+            bases |= {f.relative_to(compiled).as_posix().removesuffix(".class").split("$", 1)[0]
+                      for f in compiled.rglob("*.class")}
+        wrong = sorted(n for n in set(got) | set(reference)
+                       if (n not in got or n not in reference or got[n] != reference[n])
+                       and n.removesuffix(".class").split("$", 1)[0] not in bases)
+        if wrong:
+            out.append((module, wrong))
+    return out
+
+
+def classes():
+    """Check that every built jar is the upstream release jar with only the patched classes changed: what lets build
+    copy a project whose patches are as released instead of rebuilding it."""
+    bad = {project: diffs for project in V1 if (diffs := class_diffs(project))}
+    for project, modules in bad.items():
+        for module, names in modules:
+            print(f"{project}:{module}: {len(names)} classes differ from upstream and are not patched, "
+                  f"such as {names[0]}")
+    count = sum(len(p["publish"]["modules"]) for p in V1.values())
+    print(f"classes: {count} modules, {len(bad)} with a difference from upstream outside the patches")
+    return not bad
 
 
 def upstream_pom(g, a, v):
@@ -957,6 +1019,7 @@ def notes(deployment=None):
     upgrades = DEPENDENCIES["upgrades"]
     rows = [f"| [{i}]({c['advisory']}) | {c['project']} | {c['severity']} | {c['title'].replace('|', '/')} |"
             for i, c in verify.CVES.items() if c["project"] in V1 and c["status"] in ("verified", "released")]
+    rebuilt = [name for name in V1 if rebuilds(name)]
     lines = [
         f"LTS for Spring {BOM_VERSION}: security fixes for Spring Boot {MANIFEST['boot']} and Spring Cloud "
         f"{MANIFEST['cloud']}.", "",
@@ -965,6 +1028,9 @@ def notes(deployment=None):
         f"([README]({URL}#install)):", "",
         f"- `org.springframework.boot:spring-boot-starter-parent` or `spring-boot-dependencies`: `{BOM_VERSION}`",
         f"- `org.springframework.cloud:spring-cloud-dependencies`: `{cloud}`", "",
+        *([f"This release rebuilds the {len(rebuilt)} projects whose last release's class files did not match "
+           "Spring's own build; their source and security fixes are unchanged, and every other project is unchanged "
+           "from the last release.", ""] if rebuilt else []),
         "| Project | Version |", "|---|---|",
         *[f"| [{name}]({p['upstream']}) | `{version(name)}` |" for name, p in V1.items()], "",
         f"It fixes {len(rows)} CVEs in Spring and Reactor:", "",
@@ -1039,7 +1105,7 @@ def main(args):
                                                      for m in V1[p]["publish"]["modules"])]
         return all(central_build(p) for p in projects)
     commands = {"boms": boms, "bom": bom, "compat": compat, "samples": zip_samples, "zip": zip_release,
-                "bundle": bundle, "upload": upload}
+                "classes": classes, "bundle": bundle, "upload": upload}
     if len(args) == 1 and args[0] in commands:
         return commands[args[0]]()
     if args[:1] == ["central-samples"] and len(args) <= 2 and set(args[1:]) <= set(SAMPLE_REPOS):

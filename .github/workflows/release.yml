@@ -41,6 +41,7 @@ jobs:
           python scripts/release.py build
           python scripts/release.py boms
           python scripts/release.py samples
+          python scripts/release.py classes
           python scripts/release.py zip
       - name: Build the Maven Central train
         if: inputs.central

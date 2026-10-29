@@ -118,6 +118,19 @@ def check():
     if dirs != expected:
         errors.append(f"patch directories differ from manifest.yaml: {sorted(dirs ^ expected)}")
 
+    rebuild = MANIFEST.get("rebuild")
+    if rebuild is not None:
+        if set(rebuild) != {"train", "projects"} or rebuild["train"] != MANIFEST["train"]:
+            errors.append("manifest.yaml: rebuild must name this train, with only train and projects; "
+                          "remove it after that release")
+        else:
+            listed = rebuild["projects"]
+            if len(listed) != len(set(listed)):
+                errors.append("manifest.yaml: rebuild lists a project twice")
+            for project in listed:
+                if project not in PROJECTS or PROJECTS[project].get("scope") != "v1":
+                    errors.append(f"manifest.yaml: rebuild names {project}, which is not a v1 project")
+
     claimed = set()
     for cve_id, c in CVES.items():
         where, patches = f"cves/{cve_id}.yaml", c.get("patches") or []

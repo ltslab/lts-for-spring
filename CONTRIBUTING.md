@@ -73,6 +73,7 @@ releases or advisories make the file out of date. The release notes list every r
 scripts/release.py build     # patch and build every module of the v1 projects into dist/repository
 scripts/release.py boms      # write the Spring Boot, Spring Cloud, Reactor, and Spring Data BOMs there
 scripts/release.py samples   # resolve samples/maven; every rebuilt module must resolve to its -ltslab version
+scripts/release.py classes   # check that each jar differs from upstream only in the classes its patches change
 scripts/release.py zip       # zip dist/repository as lts-for-spring-<version>.zip
 scripts/release.py sign      # sign the zip with the ltslab key
 ```
@@ -93,14 +94,22 @@ Central, without javadoc. A BOM is rewritten when it manages a rebuilt module or
 rewritten BOM, and the Spring Boot BOM also takes the third-party versions from
 `cves/dependencies.json`.
 
+A build change can leave a released project's classes different from the upstream build. List that project
+under `rebuild` in `manifest.yaml` for the next train: `build` rebuilds it at that train although its patches
+are as released, and copies every other project as before. `classes` compares every built jar with the
+upstream release jar and fails when a class outside the patches differs, so a project is copied only when a
+rebuild would change nothing. Remove the `rebuild` block after the release; `verify.py` rejects it for the
+next train.
+
 ### Maven Central
 
 Maven Central gets the train `central` in `manifest.yaml`, under the `io.github.ltslab` group, because a
 released version can never change there. Every release publishes its BOM, Maven extension, and Gradle
 plugin again at the release version, so `train` and `central` are raised together when a release goes
 to both. Central has each module in `publish.modules` at the zip's version, so a release adds only the
-modules of the projects whose patches changed, which keeps two releases a month within Central's monthly
-publishing limits. The release workflow, run with `central`, adds the modules that Central lacks:
+modules of the projects whose patches changed or that it rebuilds, which keeps two releases a month within
+Central's monthly publishing limits. The release workflow, run with `central`, adds the modules that Central
+lacks:
 
 ```bash
 scripts/release.py central-build            # copy those modules from the zip build into dist/repo as io.github.ltslab
@@ -124,7 +133,8 @@ Each module ships a placeholder javadoc jar, and its sources jar carries the doc
 3. Review the draft and publish it. With a Central deployment in the notes, this runs the workflow
    again: after the `release` environment is approved, it publishes the deployment on Maven
    Central, which cannot be undone, and resolves the modules from there.
-4. In a pull request, set the released CVEs to `status: released` and run `scripts/verify.py index`.
+4. In a pull request, set the released CVEs to `status: released`, remove the `rebuild` block if the
+   release had one, and run `scripts/verify.py index`.
 
 To abandon a draft, delete it, and run the workflow with `drop` set to its deployment ID if it has one.
 `scripts/release.py upload`, `publish`, and `drop` also run locally with the token in `~/.m2/settings.xml`.
