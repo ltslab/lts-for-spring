@@ -1,0 +1,28 @@
+name: central-check
+
+# Resolve every module from Maven Central after a successful release. This is not part of the release: Central can
+# take a few minutes to serve a new deployment, and that must not block or fail the release.
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [release]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0  # the release tags pick each project's version
+      - uses: ./.github/actions/setup
+      - name: Resolve the modules from Maven Central
+        run: |
+          for attempt in 1 2 3; do python scripts/release.py central-samples central && exit 0; sleep 120; done
+          exit 1

@@ -120,16 +120,21 @@ def check():
 
     rebuild = MANIFEST.get("rebuild")
     if rebuild is not None:
-        if set(rebuild) != {"train", "projects"} or rebuild["train"] != MANIFEST["train"]:
-            errors.append("manifest.yaml: rebuild must name this train, with only train and projects; "
-                          "remove it after that release")
+        if not isinstance(rebuild, dict):
+            errors.append("manifest.yaml: rebuild must map each train to the projects it rebuilt")
         else:
-            listed = rebuild["projects"]
-            if len(listed) != len(set(listed)):
-                errors.append("manifest.yaml: rebuild lists a project twice")
-            for project in listed:
-                if project not in PROJECTS or PROJECTS[project].get("scope") != "v1":
-                    errors.append(f"manifest.yaml: rebuild names {project}, which is not a v1 project")
+            for train, projects in rebuild.items():
+                if not isinstance(train, int) or train > MANIFEST["train"]:
+                    errors.append(f"manifest.yaml: rebuild train {train} is not a train at or before "
+                                  f"{MANIFEST['train']}")
+                if not isinstance(projects, list):
+                    errors.append(f"manifest.yaml: rebuild {train} must list projects")
+                    continue
+                if len(projects) != len(set(projects)):
+                    errors.append(f"manifest.yaml: rebuild {train} lists a project twice")
+                for project in projects:
+                    if project not in PROJECTS or PROJECTS[project].get("scope") != "v1":
+                        errors.append(f"manifest.yaml: rebuild {train} names {project}, which is not a v1 project")
 
     claimed = set()
     for cve_id, c in CVES.items():
