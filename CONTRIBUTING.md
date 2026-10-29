@@ -86,20 +86,20 @@ after its unpatched sources reproduce the upstream classes byte for byte. For a 
 classes, `ajc` in `manifest.yaml` runs ajc after javac, as upstream's build does.
 
 Modules keep their upstream group and artifact IDs; only the version changes, to
-`<upstream version>-ltslab.<N>`, where N is the train of the release that last changed the project's
-`patches/` directory. A project whose patches are as released is not built again: `build` copies its
-modules, parents, and BOMs from the last release's zip, so a released version never changes. The BOMs
-take the train's version. The zip holds the modules whose upstream version is on Maven
-Central, without javadoc. A BOM is rewritten when it manages a rebuilt module or imports a
+`<upstream version>-ltslab.<N>`, where N is the train of the release that last changed the project, by its
+`patches/` directory or by a rebuild. A project whose patches are as released and that is not in `rebuild` is
+not built again: `build` copies its modules, parents, and BOMs from the last release's zip, so a released
+version never changes. The BOMs take the train's version. The zip holds the modules whose upstream version is
+on Maven Central, without javadoc. A BOM is rewritten when it manages a rebuilt module or imports a
 rewritten BOM, and the Spring Boot BOM also takes the third-party versions from
 `cves/dependencies.json`.
 
-A build change can leave a released project's classes different from the upstream build. List that project
-under `rebuild` in `manifest.yaml` for the next train: `build` rebuilds it at that train although its patches
-are as released, and copies every other project as before. `classes` compares every built jar with the
+A build change can leave a released project's classes different from the upstream build. Add that project
+under the coming train's `rebuild` entry in `manifest.yaml`: `build` rebuilds it at that train although its
+patches are as released, and copies every other project as before. `classes` compares every built jar with the
 upstream release jar and fails when a class outside the patches differs, so a project is copied only when a
-rebuild would change nothing. Remove the `rebuild` block after the release; `verify.py` rejects it for the
-next train.
+rebuild would change nothing. Keep the entry after the release: it is why the project stays at that train
+until its patches or a later rebuild change it.
 
 ### Maven Central
 
@@ -121,6 +121,7 @@ scripts/release.py bundle                   # collect what Central lacks in dist
 
 Dependencies between republished modules are rewritten to the `io.github.ltslab` coordinates.
 Each module ships a placeholder javadoc jar, and its sources jar carries the documentation.
+The `central-check` workflow resolves the modules from Central after a successful release; it never blocks a release.
 
 ## Release
 
@@ -129,14 +130,14 @@ Each module ships a placeholder javadoc jar, and its sources jar carries the doc
 2. Run the `release` workflow from `main` and approve the `release` environment. It builds the
    train and the samples, signs the zip with the CI signing subkey, and drafts a GitHub release with
    the notes, the zip, and its signature. With `central`, it also uploads the modules that Maven
-   Central lacks to the Central Portal as `USER_MANAGED` and waits for validation.
-3. Review the draft and publish it. With a Central deployment in the notes, this runs the workflow
-   again: after the `release` environment is approved, it publishes the deployment on Maven
-   Central, which cannot be undone, and resolves the modules from there.
-4. In a pull request, set the released CVEs to `status: released`, remove the `rebuild` block if the
-   release had one, and run `scripts/verify.py index`.
+   Central lacks to the Central Portal as `USER_MANAGED`, waits for validation, publishes the
+   deployment, which cannot be undone, and then drafts the release.
+3. Review the draft and publish it. Central is already published; publishing the draft does not run the
+   workflow again. The `central-check` workflow resolves the modules from Central separately.
+4. In a pull request, set the released CVEs to `status: released` and run `scripts/verify.py index`.
 
-To abandon a draft, delete it, and run the workflow with `drop` set to its deployment ID if it has one.
+To abandon a draft, delete it; with `central`, its modules stay on Maven Central. `drop` drops a deployment
+that never published, such as one whose upload failed validation.
 `scripts/release.py upload`, `publish`, and `drop` also run locally with the token in `~/.m2/settings.xml`.
 
 ## Add a CVE

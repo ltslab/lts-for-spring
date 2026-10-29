@@ -89,26 +89,39 @@ def released():
                   key=lambda r: -r[1])
 
 
+def rebuild_projects(train):
+    """The projects that a train rebuilt although their patches had not changed, because their released classes
+    did not match the upstream build."""
+    return set((MANIFEST.get("rebuild") or {}).get(train) or [])
+
+
 def rebuilds(project):
-    """Whether the project rebuilds at this train although its patches are as released, because its released
-    classes do not match the upstream build."""
-    rebuild = MANIFEST.get("rebuild") or {}
-    return rebuild.get("train") == TRAIN and project in (rebuild.get("projects") or [])
+    """Whether the project rebuilds at this train although its patches are as released."""
+    return project in rebuild_projects(TRAIN)
 
 
 @functools.cache
 def version(project):
-    """The project's version: the train of the release that last changed its patches, or this train. A version once
-    released never changes, so a project whose patches are as released keeps that release's modules, apart from a
-    project listed under rebuild in manifest.yaml, which this train rebuilds anyway."""
-    train = TRAIN
+    """The project's version: the train of the release that last changed it, by its patches or by a rebuild, or this
+    train. A version once released never changes, so a project whose patches and rebuilds are as released keeps that
+    release's modules."""
+    up = str(V1[project]["tag"]).removeprefix("v")
     if rebuilds(project):
-        return ltslab(str(V1[project]["tag"]).removeprefix("v"))
-    for tag, n in released():
-        if subprocess.run(["git", "diff", "--quiet", tag, "--", f"patches/{project}"], cwd=ROOT).returncode:
-            break
-        train = n
-    return ltslab(str(V1[project]["tag"]).removeprefix("v"), train)
+        return ltslab(up, TRAIN)
+    tags = released()
+    if not tags:
+        return ltslab(up, TRAIN)
+    if subprocess.run(["git", "diff", "--quiet", tags[0][0], "--", f"patches/{project}"],
+                      cwd=ROOT).returncode:  # changes after the newest release are this train's
+        return ltslab(up, TRAIN)
+    for i, (tag, n) in enumerate(tags):
+        if project in rebuild_projects(n):
+            return ltslab(up, n)
+        older = tags[i + 1][0] if i + 1 < len(tags) else None
+        if older and subprocess.run(["git", "diff", "--quiet", older, tag, "--", f"patches/{project}"],
+                                    cwd=ROOT).returncode:  # the patches changed at this release
+            return ltslab(up, n)
+    return ltslab(up, tags[-1][1])
 
 
 def module_dir(artifact, ver):

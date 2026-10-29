@@ -17,12 +17,11 @@ boot: "3.5.16"
 cloud: "2025.0.3"  # the Spring Cloud release train for these Spring Cloud projects
 train: 2  # versions are <upstream version>-ltslab.<train>
 central: 2  # the train that Maven Central gets; raise it with train when a release goes to both
-# Projects rebuilt at this train although their patches have not changed since the last release: their released
-# classes do not match the upstream build, which a rebuild does. Every other project is copied from the last
-# release's zip. Remove this block once the release is out; verify.py then rejects it for the next train.
+# Projects rebuilt at a train although their patches had not changed, because their released classes did not match
+# the upstream build. A project's version is the last train that changed it, by its patches or by a rebuild, so keep
+# these entries after the release: they are why a project stays at that train until its patches change.
 rebuild:
-  train: 2
-  projects:
+  2:
     - spring-security
     - spring-batch
     - spring-cloud-gateway
