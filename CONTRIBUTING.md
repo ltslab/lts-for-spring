@@ -125,19 +125,30 @@ The `central-check` workflow resolves the modules from Central after a successfu
 
 ## Release
 
+The workflow uploads a `release` artifact with the signed zip, its `.asc`, and the deployment ID. Create the
+GitHub release with `gh release create` and the maintainer's token: the organization keeps `GITHUB_TOKEN`
+read-only. `sign-release` signs an existing train artifact with the CI signing subkey when a release has to be
+recovered.
+
 1. Raise `train` in `manifest.yaml` (and `central`, for a release that goes to both) and the versions in
    the README and `samples/` in a pull request.
-2. Run the `release` workflow from `main` and approve the `release` environment. It builds the
-   train and the samples, signs the zip with the CI signing subkey, and drafts a GitHub release with
-   the notes, the zip, and its signature. With `central`, it also uploads the modules that Maven
-   Central lacks to the Central Portal as `USER_MANAGED`, waits for validation, publishes the
-   deployment, which cannot be undone, and then drafts the release.
-3. Review the draft and publish it. Central is already published; publishing the draft does not run the
-   workflow again. The `central-check` workflow resolves the modules from Central separately.
+2. Run the `release` workflow from `main` and approve the `release` environment. It builds the train and the
+   samples, signs the zip with the CI signing subkey, and uploads the signed release as the `release`
+   artifact. With `central`, it also uploads the modules that Maven Central lacks to the Central Portal as
+   `USER_MANAGED`, waits for validation, and publishes the deployment, which cannot be undone.
+3. Download the `release` artifact and create the GitHub release with `gh`:
+   ```bash
+   gh run download <run> -n release -D dist
+   version=$(python -c 'import sys; sys.path.insert(0, "scripts"); import release; print(release.BOM_VERSION)')
+   python scripts/release.py notes "$(cat dist/deployment.txt)" > dist/notes.md
+   gh release create "$version" --target <the run's head SHA> --title "$version" --notes-file dist/notes.md \
+     "dist/lts-for-spring-$version.zip" "dist/lts-for-spring-$version.zip.asc"
+   ```
+   The `central-check` workflow resolves the modules from Central separately.
 4. In a pull request, set the released CVEs to `status: released` and run `scripts/verify.py index`.
 
-To abandon a draft, delete it; with `central`, its modules stay on Maven Central. `drop` drops a deployment
-that never published, such as one whose upload failed validation.
+To abandon a release, do not create it; with `central`, its modules stay on Maven Central. `drop` drops a
+deployment that never published, such as one whose upload failed validation.
 `scripts/release.py upload`, `publish`, and `drop` also run locally with the token in `~/.m2/settings.xml`.
 
 ## Add a CVE

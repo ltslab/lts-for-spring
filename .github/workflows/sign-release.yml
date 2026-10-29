@@ -1,0 +1,48 @@
+name: sign-release
+
+# Recovery: sign the release zip of an existing train artifact with the CI signing subkey. The maintainer
+# creates the GitHub release with gh; this workflow only provides the signature.
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: The run whose train artifact to sign
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  sign:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: release
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
+        with:
+          name: train
+          path: dist
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+      - uses: ./.github/actions/setup
+      - name: Sign the zip
+        env:
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+        run: |
+          gpg --batch --quiet --import <<< "$GPG_SIGNING_KEY"
+          version=$(python -c 'import sys; sys.path.insert(0, "scripts"); import release; print(release.BOM_VERSION)')
+          gpg --batch --yes --quiet --local-user AF610AB69E410A04C9B5644ADACC0A4FFFCA8F8A \
+            --armor --detach-sign "dist/lts-for-spring-$version.zip"
+          gpg --batch --quiet --verify "dist/lts-for-spring-$version.zip.asc" \
+            "dist/lts-for-spring-$version.zip"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: signed
+          path: dist/*.zip.asc
+          retention-days: 7
