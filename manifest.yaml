@@ -1,6 +1,7 @@
 # Upstream projects and the exact commits the patch series apply to.
 # scope: v1 is built and released; deferred keeps its patches but is not built.
-# Every train ships as a GitHub release zip: every module of each project on its upstream coordinates.
+# Every train ships as a GitHub release zip: every module of each project that Spring Boot or Spring Cloud
+# manages, on its upstream coordinates.
 # publish: the upstream group and the modules that the patches change; on Maven Central only those are
 # republished under `group`, and every other module stays on its upstream coordinates.
 # compile: for a Gradle project, the optional and compile-only dependencies, at the versions its build uses,
@@ -16,6 +17,19 @@ boot: "3.5.16"
 cloud: "2025.0.3"  # the Spring Cloud release train for these Spring Cloud projects
 train: 2  # versions are <upstream version>-ltslab.<train>
 central: 2  # the train that Maven Central gets; raise it with train when a release goes to both
+# Projects rebuilt at this train although their patches have not changed since the last release: their released
+# classes do not match the upstream build, which a rebuild does. Every other project is copied from the last
+# release's zip. Remove this block once the release is out; verify.py then rejects it for the next train.
+rebuild:
+  train: 2
+  projects:
+    - spring-security
+    - spring-batch
+    - spring-cloud-gateway
+    - spring-authorization-server
+    - spring-cloud-config
+    - spring-data-rest
+    - spring-data-jpa
 
 projects:
   spring-framework:

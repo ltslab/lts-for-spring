@@ -7,8 +7,8 @@ plugins {
 // A usual Spring Boot and Spring Cloud application; the two BOM versions are the only change.
 dependencyManagement {
     imports {
-        mavenBom("org.springframework.boot:spring-boot-dependencies:3.5.16-ltslab.1")
-        mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.0.3-ltslab.1")
+        mavenBom("org.springframework.boot:spring-boot-dependencies:3.5.16-ltslab.2")
+        mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.0.3-ltslab.2")
     }
 }
 

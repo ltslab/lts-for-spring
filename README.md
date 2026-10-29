@@ -6,7 +6,7 @@
 
 Security fixes for applications that stay on Spring Boot 3.5.x.
 
-> **Latest release: `3.5.16-ltslab.1`**, a Maven repository zip on the [releases page](https://github.com/ltslab/lts-for-spring/releases).
+> **Latest release: `3.5.16-ltslab.2`**, a Maven repository zip on the [releases page](https://github.com/ltslab/lts-for-spring/releases).
 > The release notes list the fixed CVEs.
 
 Spring Boot 3.5.x no longer receives open-source updates.
@@ -21,25 +21,25 @@ The security fixes that the Spring and Reactor teams published for newer version
 - **Public fixes only.** Every change comes from a public upstream commit, never from a commercial release.
 - **Proven fixes.** Each CVE has a test that fails before the fix (Red) and passes after it (Green), and CI checks both.
 - **Reproducible.** Patches apply to exact upstream commits, so anyone can rebuild from public sources and this repository.
-- **Same coordinates.** Every module of a patched project is rebuilt with its upstream group and artifact ID and the version `<upstream version>-ltslab.<release>`, so the modules of a project never mix versions.
+- **Same coordinates.** Every module of a patched project keeps its upstream group and artifact ID, and its version becomes `<upstream version>-ltslab.<release>`, so the modules of a project never mix versions.
 
 | Project | Version | Release version |
 |---|---|---|
 | Spring Framework | 6.2.19 | `6.2.19-ltslab.1` |
-| Spring Security | 6.5.11 | `6.5.11-ltslab.1` |
-| Spring Authorization Server | 1.5.8 | `1.5.8-ltslab.1` |
-| Spring Batch | 5.2.6 | `5.2.6-ltslab.1` |
-| Spring Data JPA | 3.5.13 | `3.5.13-ltslab.1` |
-| Spring Data REST | 4.5.13 | `4.5.13-ltslab.1` |
+| Spring Security | 6.5.11 | `6.5.11-ltslab.2` |
+| Spring Authorization Server | 1.5.8 | `1.5.8-ltslab.2` |
+| Spring Batch | 5.2.6 | `5.2.6-ltslab.2` |
+| Spring Data JPA | 3.5.13 | `3.5.13-ltslab.2` |
+| Spring Data REST | 4.5.13 | `4.5.13-ltslab.2` |
 | Spring Integration | 6.5.10 | `6.5.10-ltslab.1` |
 | Spring AMQP | 3.2.12 | `3.2.12-ltslab.1` |
 | Spring for Apache Kafka | 3.3.16 | `3.3.16-ltslab.1` |
-| Spring Cloud Config | 4.3.4 | `4.3.4-ltslab.1` |
-| Spring Cloud Gateway | 4.3.5 | `4.3.5-ltslab.1` |
+| Spring Cloud Config | 4.3.4 | `4.3.4-ltslab.2` |
+| Spring Cloud Gateway | 4.3.5 | `4.3.5-ltslab.2` |
 | Reactor Core | 3.7.19 | `3.7.19-ltslab.1` |
 | Reactor Netty | 1.2.18 | `1.2.18-ltslab.1` |
 
-The BOMs point at these versions: `spring-boot-dependencies` and `spring-boot-starter-parent` `3.5.16-ltslab.1`, `spring-cloud-dependencies` `2025.0.3-ltslab.1`, and the Reactor and Spring Data BOMs that they import.
+The BOMs point at these versions: `spring-boot-dependencies` and `spring-boot-starter-parent` `3.5.16-ltslab.2`, `spring-cloud-dependencies` `2025.0.3-ltslab.2`, and the Reactor and Spring Data BOMs that they import.
 
 **Other libraries are upgraded, without breaking Spring.**
 Tomcat, Netty, Jackson, the JDBC drivers, and every other library in Spring Boot's BOM move to the newest patch release of the line that Spring Boot uses.
@@ -53,13 +53,13 @@ The [CVE list](CVES.md) shows every known CVE, patched or not, with the reason w
 
 ### 1. Download and verify
 
-Download `lts-for-spring-3.5.16-ltslab.1.zip` and its `.asc` signature from the [release](https://github.com/ltslab/lts-for-spring/releases/tag/3.5.16-ltslab.1).
+Download `lts-for-spring-3.5.16-ltslab.2.zip` and its `.asc` signature from the [release](https://github.com/ltslab/lts-for-spring/releases/tag/3.5.16-ltslab.2).
 Its SHA-256 is in the release notes.
 Files are signed with the ltslab key, fingerprint `AF61 0AB6 9E41 0A04 C9B5  644A DACC 0A4F FFCA 8F8A`, published on keyserver.ubuntu.com and keys.openpgp.org:
 
 ```bash
 gpg --keyserver keys.openpgp.org --recv-keys AF610AB69E410A04C9B5644ADACC0A4FFFCA8F8A
-gpg --verify lts-for-spring-3.5.16-ltslab.1.zip.asc lts-for-spring-3.5.16-ltslab.1.zip
+gpg --verify lts-for-spring-3.5.16-ltslab.2.zip.asc lts-for-spring-3.5.16-ltslab.2.zip
 ```
 
 The zip holds one directory, `repository/`, in the Maven repository layout.
@@ -69,7 +69,7 @@ The zip holds one directory, `repository/`, in the Maven repository layout.
 **Local Maven repository**, for one machine:
 
 ```bash
-unzip lts-for-spring-3.5.16-ltslab.1.zip -d ~/.m2
+unzip lts-for-spring-3.5.16-ltslab.2.zip -d ~/.m2
 ```
 
 Maven then finds the artifacts with no other change.
@@ -87,7 +87,7 @@ upload every file under `repository/` to a hosted Maven release repository at th
 For example, with the credentials in `~/.netrc`:
 
 ```bash
-unzip lts-for-spring-3.5.16-ltslab.1.zip
+unzip lts-for-spring-3.5.16-ltslab.2.zip
 cd repository
 REPO_URL=https://repo.example.com/repository/maven-releases
 find . -type f | while read -r f; do curl -fsS --netrc -T "$f" "$REPO_URL/${f#./}"; done
@@ -104,19 +104,19 @@ The `-ltslab` versions exist only there, so the order of the repositories does n
 <parent>
   <groupId>org.springframework.boot</groupId>
   <artifactId>spring-boot-starter-parent</artifactId>
-  <version>3.5.16-ltslab.1</version>
+  <version>3.5.16-ltslab.2</version>
   <relativePath/>
 </parent>
 ```
 
-or, without the parent, the version of the imported `org.springframework.boot:spring-boot-dependencies` to `3.5.16-ltslab.1`.
+or, without the parent, the version of the imported `org.springframework.boot:spring-boot-dependencies` to `3.5.16-ltslab.2`.
 With Spring Cloud, also change its BOM:
 
 ```xml
 <dependency>
   <groupId>org.springframework.cloud</groupId>
   <artifactId>spring-cloud-dependencies</artifactId>
-  <version>2025.0.3-ltslab.1</version>
+  <version>2025.0.3-ltslab.2</version>
   <type>pom</type>
   <scope>import</scope>
 </dependency>
@@ -127,8 +127,8 @@ With Spring Cloud, also change its BOM:
 ```kotlin
 dependencyManagement {
     imports {
-        mavenBom("org.springframework.boot:spring-boot-dependencies:3.5.16-ltslab.1")
-        mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.0.3-ltslab.1")  // with Spring Cloud
+        mavenBom("org.springframework.boot:spring-boot-dependencies:3.5.16-ltslab.2")
+        mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.0.3-ltslab.2")  // with Spring Cloud
     }
 }
 ```
@@ -143,35 +143,16 @@ To upgrade to a later release, put its zip in the repository and change the same
 ## Maven Central
 
 Maven Central needs a group of our own, so the modules there are under `io.github.ltslab`.
-Every release also goes there, at the same version; this one is `3.5.16-ltslab.1`.
-It has every module that a patch changes, with the zip's version, and:
+Every release also goes there, at its version; this one is `3.5.16-ltslab.2`.
+It has every module that a patch changes or that this release rebuilds, with the zip's version, and:
 
-- `io.github.ltslab:spring-boot-dependencies:3.5.16-ltslab.1`, a BOM,
-- `io.github.ltslab:lts-for-spring-maven-extension` and the Gradle plugin `io.github.ltslab.lts-for-spring`, version `3.5.16-ltslab.1`, which redirect references to the Spring Framework, Spring Security, Spring Batch, Reactor Core, and Reactor Netty modules; [`compat/`](compat/) has their source and samples.
+- `io.github.ltslab:spring-boot-dependencies:3.5.16-ltslab.2`, a BOM,
+- `io.github.ltslab:lts-for-spring-maven-extension` and the Gradle plugin `io.github.ltslab.lts-for-spring`, version `3.5.16-ltslab.2`, which redirect references to the Spring Framework, Spring Security, Spring Batch, Reactor Core, and Reactor Netty modules; [`compat/`](compat/) has their source and samples.
 
-The BOM, the extension, and the plugin at `3.5.16-ltslab.1` predate this release's modules and third-party
-versions; the next release publishes them again. Until then, add those modules directly and exclude their
-upstream one (`mvn dependency:tree` shows where):
+The BOM, the extension, and the plugin at `3.5.16-ltslab.2` match this release's modules and third-party
+versions.
 
-```xml
-<dependency>
-  <groupId>org.springframework.boot</groupId>
-  <artifactId>spring-boot-starter-data-jpa</artifactId>
-  <exclusions>
-    <exclusion>
-      <groupId>org.springframework.data</groupId>
-      <artifactId>spring-data-jpa</artifactId>
-    </exclusion>
-  </exclusions>
-</dependency>
-<dependency>
-  <groupId>io.github.ltslab</groupId>
-  <artifactId>spring-data-jpa</artifactId>
-  <version>3.5.13-ltslab.1</version>
-</dependency>
-```
-
-The [release notes](https://github.com/ltslab/lts-for-spring/releases/tag/3.5.16-ltslab.1) list every module on Maven Central.
+The [release notes](https://github.com/ltslab/lts-for-spring/releases/tag/3.5.16-ltslab.2) list every module on Maven Central.
 The zip is simpler and has this release's raised third-party versions, so prefer it.
 
 ## Contributing
